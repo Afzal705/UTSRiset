@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PSO + ABC Optimization</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <h1 class="text-center text-2xl font-bold mt-10 mb-10">
+        Hybrid PSO + ABC Optimization
+    </h1>
+    
+    <div class="text-center mt-5">
+        <button id="startPSOButton" class="bg-green-500 hover:bg-green-700 text-white px-4 py-2 m-2">
+            Start PSO Optimization
+        </button>
+        <button id="startABCButton" class="bg-purple-500 hover:bg-purple-700 text-white px-4 py-2 m-2">
+            Start ABC Optimization
+        </button>
+    </div>
+
+    <!-- PSO Results -->
+    <h2 class="text-center text-xl font-bold mt-10">PSO Results</h2>
+    <table class="min-w-full">
+        <thead>
+            <tr>
+                <th class="border border-gray-300 p-2">Particle</th>
+                <th class="border border-gray-300 p-2">Position</th>
+                <th class="border border-gray-300 p-2">Fitness</th>
+                <th class="border border-gray-300 p-2">Velocity</th>
+                <th class="border border-gray-300 p-2">Pbest</th>
+                <th class="border border-gray-300 p-2">Pbest Fitness</th>
+            </tr>
+        </thead>
+        <tbody id="psoTableBody"></tbody>
+    </table>
+    <div class="mt-5 text-center">
+        <p id="psoGbestFitness" class="text-lg font-semibold">PSO Gbest Fitness :</p>
+        <p id="psoGbestPosition" class="text-lg font-semibold">PSO Gbest Position :</p>
+    </div>
+    <div class="mt-5">
+        <canvas id="psoFitnessChart"></canvas>
+    </div>
+
+    <!-- ABC Results -->
+    <h2 class="text-center text-xl font-bold mt-10">ABC Results</h2>
+    <table class="min-w-full">
+        <thead>
+            <tr>
+                <th class="border border-gray-300 p-2">Particle</th>
+                <th class="border border-gray-300 p-2">Position</th>
+                <th class="border border-gray-300 p-2">Fitness</th>
+                <th class="border border-gray-300 p-2">Velocity</th>
+                <th class="border border-gray-300 p-2">Pbest</th>
+                <th class="border border-gray-300 p-2">Pbest Fitness</th>
+            </tr>
+        </thead>
+        <tbody id="abcTableBody"></tbody>
+    </table>
+    <div class="mt-5 text-center">
+        <p id="abcGbestFitness" class="text-lg font-semibold">ABC Gbest Fitness :</p>
+        <p id="abcGbestPosition" class="text-lg font-semibold">ABC Gbest Position :</p>
+    </div>
+    <div class="mt-5">
+        <canvas id="abcFitnessChart"></canvas>
+    </div>
+
+    <script type="module">
+        import { PSO } from "./PSO.js";
+        import { PSOABC } from "./abc.js";
+        import { maxProfit } from "./MaxProfit.js";
+
+        const n_particles = 10;
+
+        // PSO Results
+        const pso = new PSO(n_particles, 3, maxProfit);
+        const psoTableBody = document.getElementById("psoTableBody");
+        const psoGbestFitnessElement = document.getElementById("psoGbestFitness");
+        const psoGbestPositionElement = document.getElementById("psoGbestPosition");
+        const psoFitnessChartCtx = document.getElementById("psoFitnessChart").getContext("2d");
+
+        const psoFitnessData = [];
+        const psoLabels = [];
+        const psoChart = new Chart(psoFitnessChartCtx, {
+            type: 'line',
+            data: {
+                labels: psoLabels,
+                datasets: [{
+                    label: 'PSO Gbest Fitness',
+                    data: psoFitnessData,
+                    borderColor: 'rgb(0, 128, 0)',
+                    backgroundColor: 'rgba(0, 128, 0, 0.2)',
+                    fill: true,
+                    tension: 0.1
+                }]
+            }
+        });
+
+        const updatePSO = () => {
+            psoTableBody.innerHTML = "";
+            pso.particles.forEach((particle, index) => {
+                const row = document.createElement("tr");
+                row.innerHTML = `
+                    <td class="border border-gray-300 p-2">${index + 1}</td>
+                    <td class="border border-gray-300 p-2">${particle.position.map(p => p.toFixed(2)).join(",")}</td>
+                    <td class="border border-gray-300 p-2">${particle.fitness.toFixed(2)}</td>
+                    <td class="border border-gray-300 p-2">${particle.velocity.map(v => v.toFixed(2)).join(",")}</td>
+                    <td class="border border-gray-300 p-2">${particle.pbest.map(pb => pb.toFixed(2)).join(",")}</td>
+                    <td class="border border-gray-300 p-2">${particle.pbestFitness.toFixed(2)}</td>
+                `;
+                psoTableBody.appendChild(row);
+            });
+            psoGbestFitnessElement.textContent = `PSO Gbest Fitness: ${pso.gbestFitness.toFixed(2)}`;
+            psoGbestPositionElement.textContent = `PSO Gbest Position: [${pso.gbestPosition.map(gp => gp.toFixed(2)).join(", ")}]`;
+        };
+
+        const updatePSOChart = () => {
+            psoLabels.push(psoLabels.length);
+            psoFitnessData.push(pso.gbestFitness);
+            psoChart.update();
+        };
+
+        const runPSO = () => {
+            const iterations = 50;
+            for (let i = 0; i < iterations; i++) {
+                pso.mainPSO();
+                updatePSO();
+                updatePSOChart();
+            }
+        };
+
+        // ABC Results
+        const abc = new PSOABC(n_particles, 3, maxProfit);
+        const abcTableBody = document.getElementById("abcTableBody");
+        const abcGbestFitnessElement = document.getElementById("abcGbestFitness");
+        const abcGbestPositionElement = document.getElementById("abcGbestPosition");
+        const abcFitnessChartCtx = document.getElementById("abcFitnessChart").getContext("2d");
+
+        const abcFitnessData = [];
+        const abcLabels = [];
+        const abcChart = new Chart(abcFitnessChartCtx, {
+            type: 'line',
+            data: {
+                labels: abcLabels,
+                datasets: [{
+                    label: 'ABC Gbest Fitness',
+                    data: abcFitnessData,
+                    borderColor: 'rgb(128, 0, 128)',
+                    backgroundColor: 'rgba(128, 0, 128, 0.2)',
+                    fill: true,
+                    tension: 0.1
+                }]
+            }
+        });
+
+        const updateABC = () => {
+            abcTableBody.innerHTML = "";
+            abc.particles.forEach((particle, index) => {
+                const row = document.createElement("tr");
+                row.innerHTML = `
+                    <td class="border border-gray-300 p-2">${index + 1}</td>
+                    <td class="border border-gray-300 p-2">${particle.position.map(p => p.toFixed(2)).join(",")}</td>
+                    <td class="border border-gray-300 p-2">${particle.fitness.toFixed(2)}</td>
+                    <td class="border border-gray-300 p-2">${particle.velocity.map(v => v.toFixed(2)).join(",")}</td>
+                    <td class="border border-gray-300 p-2">${particle.pbest.map(pb => pb.toFixed(2)).join(",")}</td>
+                    <td class="border border-gray-300 p-2">${particle.pbestFitness.toFixed(2)}</td>
+                `;
+                abcTableBody.appendChild(row);
+            });
+            abcGbestFitnessElement.textContent = `ABC Gbest Fitness: ${abc.gbestFitness.toFixed(2)}`;
+            abcGbestPositionElement.textContent = `ABC Gbest Position: [${abc.gbestPosition.map(gp => gp.toFixed(2)).join(", ")}]`;
+        };
+
+        const updateABCChart = () => {
+            abcLabels.push(abcLabels.length);
+            abcFitnessData.push(abc.gbestFitness);
+            abcChart.update();
+        };
+
+        const runABC = () => {
+    const iterations = 50;
+    for (let i = 0; i < iterations; i++) {
+        abc.mainHybrid();  // Menggunakan mainHybrid()
+        updateABC();
+        updateABCChart();
+    }
+};
+
+
+        document.getElementById("startPSOButton").addEventListener("click", runPSO);
+        document.getElementById("startABCButton").addEventListener("click", runABC);
+    </script>
+</body>
+</html>

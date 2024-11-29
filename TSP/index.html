@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PSO + ABC Optimization</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <h1 class="text-center text-2xl font-bold mt-10 mb-10">
+        Hybrid PSO + ABC Optimization
+    </h1>
+
+    <div class="text-center mt-5">
+        <button id="startPSOButton" class="bg-green-500 hover:bg-green-700 text-white px-4 py-2 m-2">
+            Start PSO Optimization
+        </button>
+        <button id="startABCButton" class="bg-purple-500 hover:bg-purple-700 text-white px-4 py-2 m-2">
+            Start ABC Optimization
+        </button>
+    </div>
+
+    <!-- PSO Results -->
+    <h2 class="text-center text-xl font-bold mt-10">PSO Results</h2>
+    <table class="min-w-full border-collapse">
+        <thead>
+            <tr>
+                <th class="border border-gray-300 p-2">No</th>
+                <th class="border border-gray-300 p-2">City</th>
+                <th class="border border-gray-300 p-2">Distance</th>
+            </tr>
+        </thead>
+        <tbody id="psoTableBody"></tbody>
+    </table>
+    <div class="mt-5 text-center">
+        <p id="psoGbestFitness" class="text-lg font-semibold">PSO Gbest Fitness:</p>
+        <p id="psoGbestPosition" class="text-lg font-semibold">PSO Gbest Position:</p>
+    </div>
+
+    <!-- PSO Graph -->
+    <div class="text-center mt-10">
+        <canvas id="psoGraph"></canvas>
+    </div>
+
+    <!-- ABC Results -->
+    <h2 class="text-center text-xl font-bold mt-10">ABC Results</h2>
+    <table class="min-w-full border-collapse">
+        <thead>
+            <tr>
+                <th class="border border-gray-300 p-2">No</th>
+                <th class="border border-gray-300 p-2">City</th>
+                <th class="border border-gray-300 p-2">Distance</th>
+            </tr>
+        </thead>
+        <tbody id="abcTableBody"></tbody>
+    </table>
+    <div class="mt-5 text-center">
+        <p id="abcGbestFitness" class="text-lg font-semibold">ABC Gbest Fitness:</p>
+        <p id="abcGbestPosition" class="text-lg font-semibold">ABC Gbest Position:</p>
+    </div>
+
+    <!-- ABC Graph -->
+    <div class="text-center mt-10">
+        <canvas id="abcGraph"></canvas>
+    </div>
+
+    <script>
+        // Matrik jarak antar kota
+        const distanceMatrix = [
+            [0, 90, 200, 120, 330, 120, 140, 40, 150, 20],
+            [90, 0, 150, 80, 250, 85, 100, 60, 110, 100],
+            [200, 150, 0, 120, 180, 160, 90, 220, 140, 230],
+            [120, 80, 120, 0, 200, 70, 80, 40, 110, 40],
+            [330, 250, 180, 200, 0, 270, 290, 330, 220, 350],
+            [120, 85, 160, 70, 270, 0, 20, 60, 130, 90],
+            [140, 100, 90, 80, 290, 20, 0, 80, 120, 130],
+            [40, 60, 220, 40, 330, 60, 80, 0, 110, 40],
+            [150, 110, 140, 110, 220, 130, 120, 110, 0, 160],
+            [20, 100, 230, 40, 350, 90, 130, 40, 160, 0],
+        ];
+
+        const nCities = distanceMatrix.length;
+
+        function calculateDistance(route) {
+            let distance = 0;
+            for (let i = 0; i < route.length - 1; i++) {
+                distance += distanceMatrix[route[i]][route[i + 1]];
+            }
+            distance += distanceMatrix[route[route.length - 1]][route[0]];
+            return distance;
+        }
+
+        function generateRandomRoute() {
+            return Array.from({ length: nCities }, (_, i) => i).sort(() => Math.random() - 0.5);
+        }
+
+        function updateTable(tableBody, particles) {
+            tableBody.innerHTML = "";
+            particles.forEach((particle, index) => {
+                const row = document.createElement("tr");
+                const distance = calculateDistance(particle.route);
+                row.innerHTML = `
+                    <td class="border border-gray-300 p-2">${index + 1}</td>
+                    <td class="border border-gray-300 p-2">${particle.route.join(", ")}</td>
+                    <td class="border border-gray-300 p-2">${distance.toFixed(2)}</td>
+                `;
+                tableBody.appendChild(row);
+            });
+        }
+
+        function updateGraph(canvasId, data, labels) {
+            const ctx = document.getElementById(canvasId).getContext("2d");
+
+            // Hancurkan grafik sebelumnya jika ada
+            if (window.chartInstance) {
+                window.chartInstance.destroy();
+            }
+
+            // Membuat grafik baru
+            window.chartInstance = new Chart(ctx, {
+                type: "line",
+                data: {
+                    labels,
+                    datasets: [
+                        {
+                            label: "Fitness",
+                            data,
+                            borderColor: "rgba(75, 192, 192, 1)",
+                            backgroundColor: "rgba(75, 192, 192, 0.2)",
+                            fill: false,
+                        },
+                    ],
+                },
+                options: {
+                    scales: {
+                        y: {
+                            min: Math.min(...data) - 20,
+                            max: Math.max(...data) + 10,
+                            ticks: {
+                                beginAtZero: false,
+                            },
+                        },
+                    },
+                },
+            });
+        }
+
+        function runPSO() {
+            const n_particles = 10;
+            const max_iter = 50;
+            const fitnessData = [];
+            const iterationLabels = [];
+
+            let particles = [];
+            for (let i = 0; i < n_particles; i++) {
+                const route = generateRandomRoute();
+                particles.push({
+                    route: route,
+                    fitness: calculateDistance(route),
+                });
+            }
+
+            let gBest = particles[0];
+            let gBestFitness = gBest.fitness;
+
+            for (let iter = 0; iter < max_iter; iter++) {
+                particles.forEach(particle => {
+                    if (particle.fitness < gBestFitness) {
+                        gBest = particle;
+                        gBestFitness = particle.fitness;
+                    }
+                });
+
+                fitnessData.push(gBestFitness);
+                iterationLabels.push(iter + 1);
+
+                updateTable(document.getElementById("psoTableBody"), particles);
+                document.getElementById("psoGbestFitness").innerText = `PSO Gbest Fitness: ${gBestFitness.toFixed(2)}`;
+                document.getElementById("psoGbestPosition").innerText = `PSO Gbest Position: ${gBest.route.join(", ")}`;
+
+                // Update graph only after some progress
+                if (fitnessData.length > 1) {
+                    updateGraph('psoGraph', fitnessData, iterationLabels);
+                }
+            }
+        }
+
+        function runABC() {
+            const n_employed = 5;
+            const max_iter = 50;
+            const fitnessData = [];
+            const iterationLabels = [];
+
+            let employedBees = [];
+            for (let i = 0; i < n_employed; i++) {
+                const route = generateRandomRoute();
+                employedBees.push({
+                    route: route,
+                    fitness: calculateDistance(route),
+                });
+            }
+
+            let gBest = employedBees[0];
+            let gBestFitness = gBest.fitness;
+
+            for (let iter = 0; iter < max_iter; iter++) {
+                employedBees.forEach(bee => {
+                    if (bee.fitness < gBestFitness) {
+                        gBest = bee;
+                        gBestFitness = bee.fitness;
+                    }
+                });
+
+                fitnessData.push(gBestFitness);
+                iterationLabels.push(iter + 1);
+
+                updateTable(document.getElementById("abcTableBody"), employedBees);
+                document.getElementById("abcGbestFitness").innerText = `ABC Gbest Fitness: ${gBestFitness.toFixed(2)}`;
+                document.getElementById("abcGbestPosition").innerText = `ABC Gbest Position: ${gBest.route.join(", ")}`;
+
+                // Update graph only after some progress
+                if (fitnessData.length > 1) {
+                    updateGraph('abcGraph', fitnessData, iterationLabels);
+                }
+            }
+        }
+
+        document.getElementById("startPSOButton").addEventListener("click", () => {
+            runPSO();
+        });
+
+        document.getElementById("startABCButton").addEventListener("click", () => {
+            runABC();
+        });
+    </script>
+</body>
+</html>
